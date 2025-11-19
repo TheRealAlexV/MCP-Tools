@@ -4,12 +4,13 @@
 I need you to extract donation data from a directory of PDF files using the `dvac_donations` MCP server.
 
 1.  **Source Directory:** `[INSERT PATH TO DIRECTORY CONTAINING PDFS]`
+    *   **IMPORTANT:** Use Get-ChildItem and Select-Object to get a list of all files in the directory.
 2.  **Action:** Use the `extract_and_parse_donations` tool to process all PDF files in that directory.
     *   **IMPORTANT:** Process the files in batches of **5 PDFs at a time** to avoid MCP timeout limits.
     *   Wait for each batch to complete before sending the next one.
-3.  **Output:** After all batches are processed, combine the results and save the extracted data to a CSV file named `[INSERT DESIRED CSV FILENAME]` in `[INSERT DESIRED OUTPUT DIRECTORY]`.
-    *   **IMPORTANT:** Ensure that the address field in the CSV does not contain any newlines. Addresses should be a single line string.
-4.  **IMPORTANT:** Do not create or use any helper scripts for this. You are only to use direct LLM calls and MCP calls to the specified MCP server.
+3.  **Output:** After all batches are processed, combine the results into a single list and use the `save_results_to_csv` tool to save the data to `[INSERT DESIRED CSV FILENAME]`.
+    *   **IMPORTANT:** The `save_results_to_csv` tool handles the CSV creation. Do NOT attempt to write a script or create the file manually.
+4.  **IMPORTANT:** Do not create or use any helper scripts (Python, Bash, PowerShell, etc.) for ANY part of this process. You are only to use direct LLM calls and MCP calls to the specified MCP server.
 
 """
 
@@ -22,6 +23,7 @@ import base64
 import sys
 import json
 import re
+import csv
 from typing import List, Dict, Any
 import mcp.types as types
 from openai import OpenAI
@@ -239,6 +241,49 @@ Return **ONLY** a valid JSON object with the following structure. Do not include
     
     sys.stderr.write("DEBUG: extract_and_parse_donations finished\n")
     return json.dumps(all_results, indent=2)
+
+@mcp.tool()
+def save_results_to_csv(data: List[Dict[str, Any]], output_file: str) -> str:
+    """
+    Save extracted donation data to a CSV file.
+    
+    Args:
+        data: List of donation dictionaries (from extract_and_parse_donations)
+        output_file: Absolute path to the output CSV file
+        
+    Returns:
+        Success message or error string
+    """
+    sys.stderr.write(f"DEBUG: save_results_to_csv called with {len(data)} records for {output_file}\n")
+    
+    try:
+        if not data:
+            return "No data to save."
+        
+        # Ensure directory exists
+        output_dir = os.path.dirname(output_file)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        
+        fieldnames = ["filename", "name", "address", "amount", "date"]
+        
+        with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in data:
+                # Filter row to only include known fields and ensure address is single line
+                filtered_row = {}
+                for k in fieldnames:
+                    val = row.get(k, '')
+                    if k == 'address' and isinstance(val, str):
+                        val = val.replace('\n', ', ').replace('\r', '')
+                    filtered_row[k] = val
+                writer.writerow(filtered_row)
+                
+        return f"Successfully saved {len(data)} records to {output_file}"
+    except Exception as e:
+        sys.stderr.write(f"DEBUG: Error saving CSV: {str(e)}\n")
+        return f"Error saving CSV: {str(e)}"
 
 
 if __name__ == "__main__":
