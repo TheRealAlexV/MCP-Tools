@@ -43,4 +43,8 @@ Most servers will require:
 
 ## License
 
-This code is provided for educational purposes. See individual server directories for specific licensing information.
+This code is provided for educational purposes under permissive open-source licenses. See individual server directories for specific licensing information.
+
+## Integration with AI Coding Assistants
+
+Many of these MCP servers can be integrated with popular AI coding assistants like Roo Code, Cursor, and Claude Code. See individual server README files for specific integration instructions.
